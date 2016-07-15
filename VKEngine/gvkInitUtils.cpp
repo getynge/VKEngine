@@ -3,6 +3,39 @@
 #include <array>
 #include <iostream>
 
+bool hasLayer(const char * name) {
+	uint32_t count = 0;
+	std::vector<VkLayerProperties> layerprops;
+	vkEnumerateInstanceLayerProperties(&count, nullptr);
+	if (count != 0) {
+		layerprops = std::vector<VkLayerProperties>(count);
+		vkEnumerateInstanceLayerProperties(&count, layerprops.data());
+		for (auto prop : layerprops) {
+			if (strcmp(name, prop.layerName) == 0) {
+				std::cout << "found layer: " << prop.layerName << std::endl;
+				return true;
+			}
+		}
+	} 
+	return false;
+}
+
+bool hasExtension(const char * name, const char * layerName) {
+	uint32_t count = 0;
+	std::vector<VkExtensionProperties> extprops;
+	vkEnumerateInstanceExtensionProperties(layerName, &count, nullptr);
+	if (count == 0) return false;
+	extprops = std::vector<VkExtensionProperties>(count);
+	vkEnumerateInstanceExtensionProperties(layerName, &count, extprops.data());
+	for (auto prop : extprops) {
+		if (strcmp(name, prop.extensionName) == 0) {
+			std::cout << "found extension: " << prop.extensionName << std::endl;
+			return true;
+		}
+	}
+	return false;
+}
+
 //Creates our vulkan instance and returns an error if it fails
 VkResult gvkInitUtils::initVulkan(VkInstance * inst)
 {
@@ -26,23 +59,32 @@ VkResult gvkInitUtils::initVulkan(VkInstance * inst)
 	VkInstanceCreateInfo instCrInfo = {};
 	instCrInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	instCrInfo.pApplicationInfo = &appinfo;
-	instCrInfo.enabledExtensionCount = enableExtensions.size();
-	instCrInfo.ppEnabledExtensionNames = enableExtensions.data();
 	instCrInfo.pNext = nullptr;
 #ifdef _DEBUG
 	std::array<const char*, 1> enabledLayers = {"VK_LAYER_LUNARG_standard_validation" };
+	if (!hasLayer("VK_LAYER_LUNARG_standard_validation")) {
+		std::cerr << "ERROR REQUIRED LAYER DOES NOT EXIST" << std::endl;
+		return VK_ERROR_INCOMPATIBLE_DRIVER;
+	}
 	enableExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 	instCrInfo.enabledLayerCount = enabledLayers.size();
 	instCrInfo.ppEnabledLayerNames = enabledLayers.data();
+	if (!hasExtension(VK_EXT_DEBUG_REPORT_EXTENSION_NAME, "VK_LAYER_LUNARG_standard_validation")) {
+		std::cerr << "ERROR: REQUIRED EXTENSION DOES NOT EXIST" << std::endl;
+		return VK_ERROR_INCOMPATIBLE_DRIVER;
+	}
+	
 #else
 	instCrInfo.enabledLayerCount = 0;
 	instCrInfo.ppEnabledLayerNames = nullptr;
 #endif
 	instCrInfo.flags = 0;
 
-
+	instCrInfo.enabledExtensionCount = enableExtensions.size();
+	instCrInfo.ppEnabledExtensionNames = enableExtensions.data();
 	return vkCreateInstance(&instCrInfo, nullptr, inst);
 }
+
 
 VkResult gvkInitUtils::registerDefaultDebugCallback(VkInstance inst, VkDebugReportCallbackEXT * callback)
 {
